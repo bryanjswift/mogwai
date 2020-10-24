@@ -28,11 +28,11 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() {
-    // We'll bind to 127.0.0.1:4001
-    let addr = SocketAddr::from(([127, 0, 0, 1], 4001));
+    // We'll bind to 127.0.0.1:4000
+    let addr = SocketAddr::from(([127, 0, 0, 1], 4000));
 
     // A `Service` is needed for every connection, so this
-    // creates one from our `hello_world` function.
+    // creates one from our `ssr_service` function.
     let make_svc = make_service_fn(|_conn| async {
         // service_fn converts our function into a `Service`
         Ok::<_, Infallible>(service_fn(ssr_service))

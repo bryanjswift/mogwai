@@ -1,9 +1,10 @@
+mod api;
 mod app;
+mod components;
 mod routes;
 
 use crate::app::App;
 use mogwai::prelude::*;
-use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -13,6 +14,8 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Route {
+    Game { game_id: api::GameId },
+    GameList,
     Home,
     NotFound,
 }
@@ -30,8 +33,11 @@ where
     view.html_string()
 }
 
-#[wasm_bindgen(start)]
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
+    use wasm_bindgen::prelude::*;
+
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     console_log::init_with_level(log::Level::Trace).expect("could not init console_log");
 
@@ -55,8 +61,8 @@ pub fn main() -> Result<(), JsValue> {
 }
 
 mod route_dispatch {
-    use crate::Route;
-    use wasm_bindgen::prelude::JsValue;
+    use super::{routes, Route};
+    use mogwai::prelude::*;
 
     /// Dispatch the given `Route`.
     pub fn push_state(route: Route) {
@@ -73,11 +79,27 @@ mod route_dispatch {
             Err(error) => ::log::debug!("{:?}", error),
         }
     }
+
+    /// Create a `ViewBuilder` for the given `Route`. The `ViewBuilder` will be
+    /// given access to the `Transmitter`.
+    pub fn view_builder(tx: Transmitter<Route>, route: Route) -> ViewBuilder<HtmlElement> {
+        match route {
+            Route::Game { game_id } => routes::game(game_id),
+            Route::GameList => {
+                let component = routes::GameList::new(tx, vec![]);
+                Gizmo::from(component).view_builder()
+            }
+            Route::Home => routes::home(),
+            Route::NotFound => routes::not_found(),
+        }
+    }
 }
 
 impl std::fmt::Display for Route {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Route::Game { game_id } => f.write_fmt(format_args!("/game/{}", game_id)),
+            Route::GameList => f.write_str("/game"),
             Route::Home => f.write_str("/"),
             Route::NotFound => f.write_str("/404"),
         }
@@ -87,24 +109,20 @@ impl std::fmt::Display for Route {
 impl<T: AsRef<str>> From<T> for Route {
     fn from(path: T) -> Self {
         let s = path.as_ref();
-        ::log::trace!("route try_from: {}", s);
+        ::log::trace!("route from: {}", s);
         // remove the scheme, if it has one
         let paths: Vec<&str> = s.split("/").collect::<Vec<_>>();
-        ::log::trace!("route paths: {:?}", paths);
+        ::log::info!("route parts = {:?}", paths);
 
         match paths.as_slice() {
             [""] => Route::Home,
             ["", ""] => Route::Home,
+            ["", "game"] => Route::GameList,
+            ["", "game", game_id] => match uuid::Uuid::parse_str(game_id) {
+                Ok(game_id) => Route::Game { game_id },
+                Err(_) => Route::NotFound,
+            },
             _ => Route::NotFound,
-        }
-    }
-}
-
-impl From<&Route> for ViewBuilder<HtmlElement> {
-    fn from(route: &Route) -> ViewBuilder<HtmlElement> {
-        match route {
-            Route::Home => routes::home(),
-            Route::NotFound => routes::not_found(),
         }
     }
 }

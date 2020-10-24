@@ -7,19 +7,6 @@ pub enum Out {
     RenderClicks(i32),
 }
 
-impl Out {
-    fn maybe_patch_route(&self) -> Option<Patch<View<HtmlElement>>> {
-        if let Out::Render { route } = self {
-            Some(Patch::Replace {
-                index: 0,
-                value: View::from(ViewBuilder::from(route)),
-            })
-        } else {
-            None
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct App {
     click_count: i32,
@@ -28,11 +15,13 @@ pub struct App {
 
 impl App {
     pub fn gizmo(initial_route: Route) -> Gizmo<Self> {
+        let tx_model = Transmitter::new();
+        let rx_view = Receiver::new();
         let app = App {
             click_count: 0,
             current_route: initial_route,
         };
-        Gizmo::from(app)
+        Gizmo::from_parts(app, tx_model, rx_view)
     }
 }
 
@@ -60,6 +49,14 @@ impl Component for App {
             Out::RenderClicks(count) => Some(format!("{} times", count)),
             _ => None,
         });
+        let dispatch = tx.clone();
+        let rx_main = rx.branch_filter_map(move |msg| match msg {
+            Out::Render { route } => Some(Patch::Replace {
+                index: 0,
+                value: route_dispatch::view_builder(dispatch.clone(), *route),
+            }),
+            _ => None,
+        });
         builder! {
             <div id="root" class="root">
                 <p>{("0 times", rx_text)}</p>
@@ -75,6 +72,16 @@ impl Component for App {
                         "Home"
                     </a>
                     <a
+                        href="/game"
+                        style="margin-right: 15px;"
+                        on:click=tx.contra_map(|e: &Event| {
+                            e.prevent_default();
+                            Route::GameList
+                        })
+                    >
+                        "Games"
+                    </a>
+                    <a
                         href="/404"
                         style="margin-right: 15px;"
                         on:click=tx.contra_map(|e: &Event| {
@@ -85,8 +92,8 @@ impl Component for App {
                         "Not Found"
                     </a>
                 </nav>
-                <slot patch:children=rx.branch_filter_map(Out::maybe_patch_route)>
-                    {ViewBuilder::from(&self.current_route)}
+                <slot patch:children=rx_main>
+                    {route_dispatch::view_builder(tx.clone(), self.current_route)}
                 </slot>
             </div>
         }
