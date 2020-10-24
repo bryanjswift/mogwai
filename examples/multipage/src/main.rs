@@ -28,6 +28,12 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() {
+    use simplelog::{CombinedLogger, TermLogger, LevelFilter, Config, TerminalMode};
+    CombinedLogger::init(
+        vec![
+            TermLogger::new(LevelFilter::Info, Config::default(), TerminalMode::Mixed),
+        ]
+    ).unwrap();
     // We'll bind to 127.0.0.1:4000
     let addr = SocketAddr::from(([127, 0, 0, 1], 4000));
 
