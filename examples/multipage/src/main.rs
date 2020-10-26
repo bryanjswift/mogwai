@@ -76,8 +76,8 @@ async fn ssr_service(req: Request<Body>) -> Result<Response<Body>, Infallible> {
             let static_result = hyper_staticfile::resolve(&static_root, &req).await;
             match static_result {
                 Ok(hyper_staticfile::ResolveResult::NotFound) => {
-                    // if static asset not found the not found page
-                    *response.body_mut() = html_view(&route);
+                    // if static asset is not resolved serve the not found page
+                    *response.body_mut() = html_view(&Route::NotFound);
                 }
                 Ok(asset) => {
                     // if static asset exists, serve the asset
@@ -88,7 +88,8 @@ async fn ssr_service(req: Request<Body>) -> Result<Response<Body>, Infallible> {
                 }
                 Err(_) => {
                     // otherwise serve the not found content
-                    *response.body_mut() = html_view(&route);
+                    // TODO: Serve an error page?
+                    *response.body_mut() = html_view(&Route::NotFound);
                 }
             }
         }
